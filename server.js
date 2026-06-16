@@ -1,11 +1,3 @@
-/* ═══════════════════════════════════════════════════════
-   VAGMINE OVERSEAS — server.js
-   Node.js Express Backend — Google Gemini AI (FREE)
-   ✅ No credit card needed
-   ✅ 1,500 free requests/day
-   ✅ Deploy on Railway.app or Render.com (free)
-═══════════════════════════════════════════════════════ */
-
 const express   = require('express');
 const cors      = require('cors');
 const rateLimit = require('express-rate-limit');
@@ -14,133 +6,92 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const app  = express();
 const port = process.env.PORT || 3001;
 
-/* ─── Gemini Client ─── */
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({
-  model: 'gemini-1.5-flash',   // FREE model
-  generationConfig: {
-    maxOutputTokens: 400,
-    temperature: 0.7,
-  },
+  model: 'gemini-1.5-flash',
+  generationConfig: { maxOutputTokens: 400, temperature: 0.7 },
 });
 
-/* ─── Vagmine System Prompt ─── */
-const SYSTEM_PROMPT = `You are Vagmine Assistant, the official AI sales and support agent for Vagmine Overseas Pvt. Ltd., a leading manufacturer of friction rubber compounds and industrial sealing products based in Tirunelveli, Tamil Nadu, India.
-
-Your role:
-1. Answer product queries about FRRC, FRC-25, FRC-10/12, Chopped Friction Cord, Granulated Friction Rubber, Reprocessed Rubber Compound, Tread Rubber Compounds, Industrial Hydraulic Seals, Pneumatic Rubber Seals.
-2. Help clients find the right product for their application (braking, clutch, retreading, sealing).
-3. After 3 user messages, politely collect: name, company, phone/email for a formal quote.
-4. Always be professional, warm, and action-oriented.
+const SYSTEM_PROMPT = `You are Vagmine Assistant, the official AI sales and support agent for Vagmine Overseas Pvt. Ltd., a leading manufacturer of friction rubber compounds based in Tirunelveli, Tamil Nadu, India.
 
 Company Details:
+- Founded: 2010 | Third-generation | 40+ years expertise | 2,400+ MT/year
 - Address: B-59, SIPCOT Industrial Growth Centre, Gangaikondan, Tirunelveli-627352, Tamil Nadu
 - Phone & WhatsApp: +91 9313146672
 - Email: info@vagmineoverseas.com
 - Certifications: ISO 9001:2015, BIS Certified, MSME Registered
-- Markets: Pan India + Middle East, Southeast Asia, Europe
+- USA Office: Delaware (North America)
+- Clients: Sundaram Industries (TVS Group), Yokohama-ATG, BKT Tyres, Nexen Tyre, Global Rubber Sri Lanka
+- Export: India, South Korea, China, Sri Lanka, USA, UAE
 
 Products:
-- Chopped Friction Cord: Reinforcement filler for brake/clutch linings
-- FRC-25: Grade 25, medium hardness, commercial vehicle braking
-- FRC-10/12: Grades 10 & 12, lighter duty, slab or granule form
-- FRRC: High-friction, heat-resistant, heavy duty braking
-- Granulated Friction Rubber: For compound formulation & retreading
-- Reprocessed Rubber Compound: Cost-effective general industrial use
-- Tread Rubber Compounds: Commercial tyre retreading (cold & hot cure)
-- Industrial Hydraulic Seals: High-pressure, oil-resistant, custom profiles
-- Pneumatic Rubber Seals: Low-friction, air cylinders, long service life
+1. FRRC - Fiber Reinforced Rubber Compound: half to 1 inch granules, quick mill dispersion, solid tyres
+2. FRC - Friction Rubber Compound (Baled): high friction, industrial and off-highway applications
+3. FRC-25: Grade 25, medium hardness, commercial vehicle braking
+4. FRC-10/12: Grades 10 and 12, lighter duty, slab or granule form
+5. Chopped Friction Cord: reinforcement filler for brake and clutch linings
+6. Granulated Friction Rubber: 30-45ft rolls, 7mm thick, custom preforms, solid tyre building
+7. Reprocessed Rubber Compound: cost-effective general industrial use
+8. Tread Rubber Compounds: abrasion resistant, high flexibility, commercial tyre retreading
+9. Industrial Hydraulic Seals: high-pressure, oil-resistant, custom profiles
+10. Pneumatic Rubber Seals: low friction, air cylinders, long service life
 
-Keep responses concise (3-5 sentences). End with a helpful next step.`;
+Your Role:
+- Answer product queries professionally
+- Help buyers find the right product for their application
+- After 3 messages, collect: name, company, phone, email for a quote
+- Be concise (3-4 sentences), warm, and action-oriented
+- Always end with a helpful next step`;
 
-/* ─── Middleware ─── */
+/* ── CORS — allow all origins ── */
+app.use(cors());
 app.use(express.json({ limit: '10kb' }));
 
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'https://yourusername.github.io',
-  'http://localhost:3000',
-  'http://localhost:5500',
-  'http://127.0.0.1:5500',
-];
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.some(o => origin.startsWith(o))) callback(null, true);
-    else callback(new Error('CORS: origin not allowed'));
-  },
-  methods: ['POST', 'GET'],
-}));
-
-/* Rate limiting — 20 req / 10 mins per IP */
+/* Rate limiting */
 app.use('/chat', rateLimit({
   windowMs: 10 * 60 * 1000,
-  max: 20,
+  max: 30,
   message: { error: 'Too many requests. Please try again shortly.' },
 }));
 
-/* ─── Health Check ─── */
+/* Health check */
 app.get('/', (req, res) => {
-  res.json({
-    status:    'ok',
-    service:   'Vagmine AI Backend (Gemini Free)',
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ status: 'ok', service: 'Vagmine AI Backend', timestamp: new Date().toISOString() });
 });
 
-/* ─── AI Chat Endpoint ─── */
+/* AI Chat */
 app.post('/chat', async (req, res) => {
   try {
     const { messages } = req.body;
-
     if (!messages || !Array.isArray(messages) || messages.length === 0)
-      return res.status(400).json({ error: 'Messages array is required.' });
+      return res.status(400).json({ error: 'Messages required.' });
 
-    if (messages.length > 20)
-      return res.status(400).json({ error: 'Conversation too long. Please start a new chat.' });
-
-    /* Build Gemini conversation history */
-    const history = messages
-      .slice(0, -1) // all except last
+    const history = messages.slice(0, -1)
       .filter(m => m.role && m.content)
       .map(m => ({
-        role:  m.role === 'user' ? 'user' : 'model',
+        role: m.role === 'user' ? 'user' : 'model',
         parts: [{ text: m.content.slice(0, 1000) }],
       }));
 
     const lastMessage = messages[messages.length - 1];
-    const userText    = lastMessage?.content?.slice(0, 1000) || '';
+    const userText = lastMessage?.content?.slice(0, 1000) || '';
 
-    /* Start chat session with system context */
     const chat = model.startChat({
       history: [
-        /* Inject system prompt as first exchange */
-        { role: 'user',  parts: [{ text: 'Who are you and what can you help me with?' }] },
+        { role: 'user',  parts: [{ text: 'Who are you?' }] },
         { role: 'model', parts: [{ text: SYSTEM_PROMPT }] },
         ...history,
       ],
     });
 
     const result = await chat.sendMessage(userText);
-    const reply  = result.response.text() || 'I apologise, I could not generate a response. Please contact +91 9313146672.';
-
+    const reply = result.response.text() || 'Please contact us at +91 9313146672.';
     res.json({ reply });
 
   } catch (err) {
-    console.error('Gemini Error:', err.message);
-    if (err.message?.includes('API_KEY'))
-      return res.status(500).json({ error: 'API key error. Please check configuration.' });
-    if (err.message?.includes('quota'))
-      return res.status(429).json({ error: 'Daily free limit reached. Contact us directly.' });
-    res.status(500).json({ error: 'Something went wrong. Call us: +91 9313146672' });
+    console.error('Error:', err.message);
+    res.status(500).json({ error: 'Something went wrong. Call: +91 9313146672' });
   }
 });
 
-/* ─── Lead Capture ─── */
-app.post('/lead', (req, res) => {
-  console.log('NEW LEAD:', { ...req.body, timestamp: new Date().toISOString() });
-  res.json({ success: true });
-});
-
-/* ─── Start ─── */
-app.listen(port, () => {
-  console.log(`✅ Vagmine AI Backend (Gemini Free) running on port ${port}`);
-});
+app.listen(port, () => console.log(`Vagmine AI Backend running on port ${port}`));
